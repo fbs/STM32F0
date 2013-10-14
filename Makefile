@@ -89,8 +89,10 @@ DEBUG ?= 0
 
 ifeq ($(DEBUG), 1)
 	CFLAGS		+= -O0 -ggdb
+	AFLAGS		+= -O0 -ggdb
 else
 	CFLAGS		+= $(OPTIMIZE)
+	AFLAGS		+= $(OPTIMIZE)
 endif
 
 ############### Colors ##############
