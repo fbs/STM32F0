@@ -43,7 +43,6 @@ GDBTUI			= $(ARM_PREFIX)-gdbtui
 # Other Tools
 
 OPENOCD			= openocd
-ECHO			= echo -e
 
 # MCU Related flags
 
