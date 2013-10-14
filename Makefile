@@ -39,7 +39,11 @@ OBJCPY			= $(ARM_PREFIX)-objcopy
 SIZE			= $(ARM_PREFIX)-size
 GDB				= $(ARM_PREFIX)-gdb
 GDBTUI			= $(ARM_PREFIX)-gdbtui
+
+# Other Tools
+
 OPENOCD			= openocd
+ECHO			= echo -e
 
 # MCU Related flags
 
@@ -71,17 +75,50 @@ LDFLAGS			+= -nostartfiles
 
 LDLIBS			+= -Llib -lstm32f0_periph
 
+# Terminal Colors
 
 vpath %.c src/
 vpath %.s src/
+
+############### Debugging ############
+#
+# Use `make DEBUG=1` to enable debugging
+#
+######################################
+
+DEBUG ?= 0
+
+ifeq ($(DEBUG), 1)
+	CFLAGS		+= -O0 -ggdb
+else
+	CFLAGS		+= $(OPTIMIZE)
+endif
+
+############### Colors ##############
+#
+# Use `make COLORS=0` to disable colors
+#
+#####################################
+
+COLOR ?= 1
+
+ifeq ($(COLOR), 1)
+NO_COLOR		= \x1b[0m
+GREEN_COLOR		= \x1b[32;01m
+YELLOW_COLOR	= \x1b[33;01m
+RED_COLOR		= \x1b[31;01m
+BLUE_COLOR		= \x1b[34;01m
+CYAN_COLOR		= \x1b[36;01m
+endif
+
 
 #
 # Source Files
 #
 
 #### Dont touch ########
-CSRC = system_stm32f0xx.c stm32f0xx_it.c
-ASRC = $(STARTUP)
+CSRC			= system_stm32f0xx.c stm32f0xx_it.c
+ASRC			= $(STARTUP)
 #######################
 #
 # Add sources here
@@ -89,27 +126,19 @@ ASRC = $(STARTUP)
 # ASRC : ASM Source files
 #######################
 
-CSRC +=	main.c
-ASRC += delay.s
+CSRC			+= main.c
+ASRC			+= delay.s
 
 ###### C Defs
 
-DEFS	= -D "USE_STDPERIPH_DRIVER"
-DEFS	+=
+DEFS			= -D "USE_STDPERIPH_DRIVER"
+DEFS			+=
 
 #####
 
 
-AOBJS	+= $(patsubst %, $(BUILDDIR)/%,$(ASRC:.s=.o))
-COBJS	= $(patsubst %, $(BUILDDIR)/%,$(CSRC:.c=.o))
-
-
-DEBUG ?= 0
-ifeq ($(DEBUG), 1)
-	CFLAGS += -O0 -ggdb
-else
-	CFLAGS += $(OPTIMIZE)
-endif
+AOBJS			+= $(patsubst %, $(BUILDDIR)/%,$(ASRC:.s=.o))
+COBJS			= $(patsubst %, $(BUILDDIR)/%,$(CSRC:.c=.o))
 
 
 all: setup build size
@@ -118,10 +147,10 @@ setup:
 	@mkdir -p $(BUILDDIR)
 
 build: setup $(COBJS) $(AOBJS)
-	@echo "Linking:"
+	@echo -e '$(CYAN_COLOR)LINKING:\t$(BLUE_COLOR)$(COBJS)$(AOBJS)$(NO_COLOR)'
 	$(LD) $(CFLAGS) $(LDFLAGS) -o $(ELFFILE) $(COBJS) $(AOBJS) $(LDLIBS)
-	$(OBJCPY) -O ihex $(ELFFILE) $(HEXFILE)
-	$(OBJCPY) -O binary $(ELFFILE) $(BINFILE)
+	@$(OBJCPY) -O ihex $(ELFFILE) $(HEXFILE)
+	@$(OBJCPY) -O binary $(ELFFILE) $(BINFILE)
 
 clean:
 	rm -rf $(BUILDDIR)
@@ -135,7 +164,8 @@ erase:
 debug: _startopenocd _gdb _killopenocd
 
 size: build
-	$(SIZE) $(ELFFILE)
+	@echo -e '$(CYAN_COLOR)SIZE:\t\t$(BLUE_COLOR)$(ELFFILE)$(NO_COLOR)'
+	@$(SIZE) $(ELFFILE)
 
 _startopenocd: $(BIN)
 	openocd -f $(OPENOCD_CFG) 1>/dev/null 2>/dev/null &
@@ -150,10 +180,10 @@ _gdb:
 ########### Compile / Assemble
 
 $(COBJS): $(BUILDDIR)/%.o : %.c
-	@echo COMPILING: $<
+	@echo -e '$(CYAN_COLOR)COMPILING:\t$(BLUE_COLOR)$<$(NO_COLOR)'	
 	$(CC) $(CFLAGS) $(DEFS) -c $< -o $@
 
 $(AOBJS): $(BUILDDIR)/%.o : %.s
-	@echo ASSEMBLING: $<
+	@echo -e '$(CYAN_COLOR)ASSEMBLING:\t$(BLUE_COLOR)$<$(NO_COLOR)'
 	$(CC) $(AFLAGS) $(DEFS) -c $< -o $@
 
