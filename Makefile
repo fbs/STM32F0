@@ -1,54 +1,76 @@
 # Target / project Name
 
-NAME		= blink
+NAME			= blink
 
 # Startup files
 
-OPENOCD_CFG	= stm32f0.cfg
-LDSCRIPT	= stm32f0.ld
-STARTUP		= startup_stm32f0xx.s
+OPENOCD_CFG		= stm32f0.cfg
+LDSCRIPT		= stm32f0.ld
+STARTUP			= startup_stm32f0xx.s
+BUILDDIR		= build
+OUTFILE			= $(BUILDDIR)/$(NAME)
+
+# Target files
+
+OUTPREFIX		= $(BUILDDIR)/$(NAME)
+HEXFILE			= $(OUTPREFIX).hex
+ELFFILE			= $(OUTPREFIX).elf
+BINFILE			= $(OUTPREFIX).bin
+MAPFILE			= $(OUTPREFIX).map
+
+# Lib locations
+
+PERIPH			= lib/StdPeriph
+CMSIS			= lib/CMSIS
 
 # Include locations
-PERIPH = lib/StdPeriph
-CMSIS = lib/CMSIS
 
-INCLUDE = -Iinc
-INCLUDE += -I$(PERIPH)/inc
-INCLUDE += -I$(CMSIS)/Include
-INCLUDE += -I$(CMSIS)/Device/ST/STM32F0xx/Include 
+INCLUDE			= -Iinc
+INCLUDE			+= -I$(PERIPH)/inc
+INCLUDE			+= -I$(CMSIS)/Include
+INCLUDE			+= -I$(CMSIS)/Device/ST/STM32F0xx/Include 
 
 # GCC Tools
 
-ARM_PREFIX	= arm-none-eabi
-CC			= $(ARM_PREFIX)-gcc
-LD			= $(ARM_PREFIX)-gcc
-OBJCPY		= $(ARM_PREFIX)-objcopy
-SIZE		= $(ARM_PREFIX)-size
-GDB			= $(ARM_PREFIX)-gdb
-OPENOCD		= openocd
+ARM_PREFIX		= arm-none-eabi
+CC				= $(ARM_PREFIX)-gcc
+LD				= $(ARM_PREFIX)-gcc
+OBJCPY			= $(ARM_PREFIX)-objcopy
+SIZE			= $(ARM_PREFIX)-size
+GDB				= $(ARM_PREFIX)-gdb
+GDBTUI			= $(ARM_PREFIX)-gdbtui
+OPENOCD			= openocd
 
 # MCU Related flags
 
-MCUFLAGS	= -mlittle-endian -mcpu=cortex-m0 -march-armv6-m
-MCUFLAGS	= -mthumb -mfloat-abi=soft
+MCUFLAGS		= -mlittle-endian -mcpu=cortex-m0
+MCUFLAGS		+= -mthumb -mfloat-abi=soft
 
 # Optimization flags
 
-OPTIMIZE	= -Os
+OPTIMIZE		= -Os
+
+# ASMFlags
+
+AFLAGS			+= $(INCLUDE) $(MCUFLAGS)
 
 # CFlags
 
-CFLAGS		= -std=c99
-CFLAGS		+= -Wall -Wextra -Warray-bounds
-CFLAGS		+= -ffunction-sections -fdata-sections # Remove unused functions
-CFLAGS		+= $(INCLUDE) $(MCUFLAGS)
+CFLAGS			+= -std=c99
+CFLAGS			+= -Wall -Wextra -Warray-bounds
+CFLAGS			+= -ffunction-sections -fdata-sections # Remove unused functions
+CFLAGS			+= $(INCLUDE) $(MCUFLAGS)
 
 # LDFlags
 
-LDFLAGS		= -T$(LDSCRIPT) 
-LDFLAGS		+= -Llib -lstm32f0_periph
-LDFLAGS		+= -Wl,--gc-sections,-Map=$(NAME).map # Remove unused functions
-LDFLAGS		+= -nostartfiles -static
+LDFLAGS			+= -T$(LDSCRIPT) 
+LDFLAGS			+= -Wl,--gc-sections,-Map=$(MAPFILE) # Remove unused functions
+LDFLAGS			+= -nostartfiles
+
+# Libs need to be at the end
+
+LDLIBS			+= -Llib -lstm32f0_periph
+
 
 vpath %.c src/
 vpath %.s src/
@@ -58,7 +80,7 @@ vpath %.s src/
 #
 
 #### Dont touch ########
-CSRC = system_stm32f0xx.c
+CSRC = system_stm32f0xx.c stm32f0xx_it.c
 ASRC = $(STARTUP)
 #######################
 #
@@ -68,11 +90,19 @@ ASRC = $(STARTUP)
 #######################
 
 CSRC +=	main.c
-#SRC +=	gpio.c
+ASRC += delay.s
 
-#ASRC += 
+###### C Defs
 
-OBJS	= $(CSRC:.c=.o) $(ASRC:.s=.o)
+DEFS	= -D "USE_STDPERIPH_DRIVER"
+DEFS	+=
+
+#####
+
+
+AOBJS	+= $(patsubst %, $(BUILDDIR)/%,$(ASRC:.s=.o))
+COBJS	= $(patsubst %, $(BUILDDIR)/%,$(CSRC:.c=.o))
+
 
 DEBUG ?= 0
 ifeq ($(DEBUG), 1)
@@ -82,20 +112,48 @@ else
 endif
 
 
+all: setup build size
 
-all: build
+setup:
+	@mkdir -p $(BUILDDIR)
 
-build: $(OBJS)
-	$(LD)  $(LDFLAGS) -o $(NAME).elf $(OBJS)
-	$(OBJCPY) -O ihex $(NAME).elf $(NAME).hex
+build: setup $(COBJS) $(AOBJS)
+	@echo "Linking:"
+	$(LD) $(CFLAGS) $(LDFLAGS) -o $(ELFFILE) $(COBJS) $(AOBJS) $(LDLIBS)
+	$(OBJCPY) -O ihex $(ELFFILE) $(HEXFILE)
+	$(OBJCPY) -O binary $(ELFFILE) $(BINFILE)
 
 clean:
-	rm -f $(OBJS) *.hex *.elf *.bin *.map
+	rm -rf $(BUILDDIR)
 
-.c.o:
+flash: build
+	$(OPENOCD) -f $(OPENOCD_CFG) -c "stm_flash $(BINFILE)"
+
+erase:
+	$(OPENOCD) -f $(OPENOCD_CFG) -c "stm_erase"
+
+debug: _startopenocd _gdb _killopenocd
+
+size: build
+	$(SIZE) $(ELFFILE)
+
+_startopenocd: $(BIN)
+	openocd -f $(OPENOCD_CFG) 1>/dev/null 2>/dev/null &
+
+_killopenocd:
+	@echo "shutdown" | nc localhost 4444 1>/dev/null 2>/dev/null
+
+_gdb:
+	$(GDB) --eval-command="target remote localhost:3333" $(ELF)
+
+
+########### Compile / Assemble
+
+$(COBJS): $(BUILDDIR)/%.o : %.c
+	@echo COMPILING: $<
 	$(CC) $(CFLAGS) $(DEFS) -c $< -o $@
 
-.s.o:
-	$(CC) $(CFLAGS) $(DEFS) -c $< -o $@
-
+$(AOBJS): $(BUILDDIR)/%.o : %.s
+	@echo ASSEMBLING: $<
+	$(CC) $(AFLAGS) $(DEFS) -c $< -o $@
 
