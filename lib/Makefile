@@ -16,6 +16,7 @@ CFLAGS  = -g -O2 -Wall
 CFLAGS	+= -mlittle-endian -mthumb -mcpu=cortex-m0 -mthumb-interwork
 CFLAGS	+=  -march=armv6s-m
 CFLAGS	+= -ffreestanding -nostdlib
+CFLAGS  += -ffunction-sections -fdata-sections # keep functions & data in seperate sections so they can be removed
 CFLAGS	+= $(INCLUDE)
 CFLAGS  += -D "USE_STDPERIPH_DRIVER"
 
