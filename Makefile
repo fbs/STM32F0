@@ -170,7 +170,7 @@ size: build
 	@$(SIZE) $(ELFFILE)
 
 _startopenocd: $(BIN)
-	openocd -f $(OPENOCD_CFG) 1>/dev/null 2>/dev/null &
+	openocd -f $(OPENOCD_CFG) -c "halt" 1>/dev/null 2>/dev/null &
 
 _killopenocd:
 	@echo "shutdown" | nc localhost 4444 1>/dev/null 2>/dev/null
