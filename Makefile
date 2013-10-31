@@ -85,11 +85,12 @@ vpath %.s src/
 #
 ######################################
 
-DEBUG ?= 0
+DEBUG ?= 1
 
 ifeq ($(DEBUG), 1)
 	CFLAGS		+= -O0 -ggdb
 	AFLAGS		+= -O0 -ggdb
+	DEFS		+= -DDEBUG
 else
 	CFLAGS		+= $(OPTIMIZE)
 	AFLAGS		+= $(OPTIMIZE)
